@@ -1,0 +1,18 @@
+# .github/workflows/ci.yml
+name: CI Workflow
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Simulate job
+        run: |
+          echo "Doing something..."
+          sleep 10
