@@ -1,0 +1,36 @@
+# .github/workflows/slack-notify.yml
+name: Slack Notifications
+
+on:
+  workflow_run:
+    workflows: ["CI Workflow"]
+    types:
+      - requested  # When workflow starts
+      - completed  # When workflow ends
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Slack notification
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          STATUS=$(jq -r '.workflow_run.status' "$GITHUB_EVENT_PATH")
+          CONCLUSION=$(jq -r '.workflow_run.conclusion' "$GITHUB_EVENT_PATH")
+          TRIGGERER=$(jq -r '.workflow_run.actor.login' "$GITHUB_EVENT_PATH")
+          NAME=$(jq -r '.workflow.name' "$GITHUB_EVENT_PATH")
+
+          if [ "$STATUS" == "in_progress" ]; then
+            TEXT="🚀 *$NAME* started by *$TRIGGERER* is now *running*."
+          else
+            EMOJI="✅"
+            if [ "$CONCLUSION" == "failure" ]; then
+              EMOJI="❌"
+            fi
+            TEXT="$EMOJI *$NAME* triggered by *$TRIGGERER* has *$CONCLUSION*."
+          fi
+
+          curl -X POST -H 'Content-type: application/json' --data "{
+            \"text\": \"$TEXT\"
+          }" $SLACK_WEBHOOK_URL
