@@ -1,18 +1,129 @@
-# .github/workflows/ci.yml
-name: CI Workflow
+# # .github/workflows/ci.yml
+# name: CI Workflow
+
+# on:
+#   push:
+#     branches: [main]
+
+# jobs:
+#   build:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v3
+
+#       - name: Simulate job
+#         run: |
+#           echo "Doing something..."
+#           sleep 10
+
+name: Test Slack Integration
 
 on:
   push:
-    branches: [main]
+    branches: "**"
+  pull_request:
+    branches: "**"
 
 jobs:
-  build:
+  test-slack:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    name: Test Slack Threading
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: Simulate job
+      - name: Send initial Slack message
+        id: slack-start
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL: ${{ secrets.SLACK_CHANNEL }}
         run: |
-          echo "Doing something..."
-          sleep 10
+          BRANCH_NAME="${GITHUB_REF#refs/*/}"
+          DEPLOYER="${GITHUB_ACTOR}"
+          JOB_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          MSG="🚀 *$DEPLOYER* started a test job\n🌿 Branch: *$BRANCH_NAME*\n🔗 <$JOB_URL|View logs>"
+
+          # Send initial message using Slack Web API
+          RESP=$(curl -s -X POST "https://slack.com/api/chat.postMessage" \
+            -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data "{
+              \"channel\": \"$SLACK_CHANNEL\",
+              \"text\": \"$MSG\",
+              \"mrkdwn\": true
+            }")
+          
+          echo "Slack API Response: $RESP"
+          
+          # Check if the response is successful
+          if echo "$RESP" | jq -e '.ok == true' > /dev/null 2>&1; then
+            # Extract the timestamp for threading
+            TIMESTAMP=$(echo "$RESP" | jq -r '.ts')
+            echo "THREAD_TS=$TIMESTAMP" >> $GITHUB_ENV
+            echo "Thread timestamp: $TIMESTAMP"
+          else
+            echo "Slack API Error: $(echo "$RESP" | jq -r '.error // "Unknown error"')"
+            exit 1
+          fi
+
+      - name: Send progress update
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL: ${{ secrets.SLACK_CHANNEL }}
+        run: |
+          curl -s -X POST "https://slack.com/api/chat.postMessage" \
+            -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data "{
+              \"channel\": \"$SLACK_CHANNEL\",
+              \"text\": \"⏳ Running test job...\",
+              \"thread_ts\": \"$THREAD_TS\",
+              \"mrkdwn\": true
+            }"
+
+      - name: Simulate work
+        run: |
+          echo "🔄 Starting test job..."
+          sleep 3
+          echo "✅ Test job completed"
+
+      - name: Send completion message
+        if: always()
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL: ${{ secrets.SLACK_CHANNEL }}
+        run: |
+          STATUS="${{ job.status }}"
+          BRANCH_NAME="${GITHUB_REF#refs/*/}"
+          
+          case "$STATUS" in
+            success) EMOJI="✅"; TEXT="$EMOJI Test job *completed* for branch *$BRANCH_NAME*" ;;
+            failure) EMOJI="❌"; TEXT="$EMOJI Test job *failed* for branch *$BRANCH_NAME*" ;;
+            cancelled) EMOJI="⚠️"; TEXT="$EMOJI Test job *cancelled* for branch *$BRANCH_NAME*" ;;
+            *) EMOJI="ℹ️"; TEXT="$EMOJI Test job status: $STATUS" ;;
+          esac
+
+          # Send final status message
+          if [ -n "$THREAD_TS" ] && [ "$THREAD_TS" != "null" ]; then
+            curl -s -X POST "https://slack.com/api/chat.postMessage" \
+              -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+              -H "Content-Type: application/json" \
+              --data "{
+                \"channel\": \"$SLACK_CHANNEL\",
+                \"text\": \"$TEXT\",
+                \"thread_ts\": \"$THREAD_TS\",
+                \"mrkdwn\": true
+              }"
+          else
+            echo "No thread timestamp available, sending standalone message"
+            curl -s -X POST "https://slack.com/api/chat.postMessage" \
+              -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+              -H "Content-Type: application/json" \
+              --data "{
+                \"channel\": \"$SLACK_CHANNEL\",
+                \"text\": \"$TEXT\",
+                \"mrkdwn\": true
+              }"
+          fi

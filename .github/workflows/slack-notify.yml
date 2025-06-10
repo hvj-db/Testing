@@ -36,47 +36,47 @@
 #           }" $SLACK_WEBHOOK_URL
 
 # .github/workflows/slack-notify.yml
-name: Slack Notify on CI Workflow
+# name: Slack Notify on CI Workflow
 
-on:
-  workflow_run:
-    workflows: ["CI Workflow"]
-    types:
-      - requested
-      - completed
+# on:
+#   workflow_run:
+#     workflows: ["CI Workflow"]
+#     types:
+#       - requested
+#       - completed
 
-jobs:
-  notify:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Send Slack notification
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        run: |
-          echo "Parsing GitHub workflow_run payload..."
+# jobs:
+#   notify:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Send Slack notification
+#         env:
+#           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+#         run: |
+#           echo "Parsing GitHub workflow_run payload..."
 
-          NAME=$(jq -r '.workflow.name' "$GITHUB_EVENT_PATH")
-          TRIGGERER=$(jq -r '.workflow_run.actor.login' "$GITHUB_EVENT_PATH")
-          STATUS=$(jq -r '.workflow_run.status' "$GITHUB_EVENT_PATH")
-          CONCLUSION=$(jq -r '.workflow_run.conclusion // "N/A"' "$GITHUB_EVENT_PATH")
-          BRANCH=$(jq -r '.workflow_run.head_branch' "$GITHUB_EVENT_PATH")
-          RUN_URL=$(jq -r '.workflow_run.html_url' "$GITHUB_EVENT_PATH")
+#           NAME=$(jq -r '.workflow.name' "$GITHUB_EVENT_PATH")
+#           TRIGGERER=$(jq -r '.workflow_run.actor.login' "$GITHUB_EVENT_PATH")
+#           STATUS=$(jq -r '.workflow_run.status' "$GITHUB_EVENT_PATH")
+#           CONCLUSION=$(jq -r '.workflow_run.conclusion // "N/A"' "$GITHUB_EVENT_PATH")
+#           BRANCH=$(jq -r '.workflow_run.head_branch' "$GITHUB_EVENT_PATH")
+#           RUN_URL=$(jq -r '.workflow_run.html_url' "$GITHUB_EVENT_PATH")
 
-          if [ "$STATUS" == "in_progress" ]; then
-            TEXT="🚀 *${NAME}* started by *${TRIGGERER}* on branch \`${BRANCH}\` is *running*. \n<${RUN_URL}|View Workflow>"
-          elif [ "$STATUS" == "completed" ]; then
-            EMOJI="✅"
-            if [ "$CONCLUSION" == "failure" ]; then
-              EMOJI="❌"
-            elif [ "$CONCLUSION" == "cancelled" ]; then
-              EMOJI="⚠️"
-            fi
-            TEXT="${EMOJI} *${NAME}* triggered by *${TRIGGERER}* on branch \`${BRANCH}\` has *${CONCLUSION}*. \n<${RUN_URL}|View Workflow>"
-          else
-            TEXT="ℹ️ *${NAME}* has unknown status: ${STATUS}"
-          fi
+#           if [ "$STATUS" == "in_progress" ]; then
+#             TEXT="🚀 *${NAME}* started by *${TRIGGERER}* on branch \`${BRANCH}\` is *running*. \n<${RUN_URL}|View Workflow>"
+#           elif [ "$STATUS" == "completed" ]; then
+#             EMOJI="✅"
+#             if [ "$CONCLUSION" == "failure" ]; then
+#               EMOJI="❌"
+#             elif [ "$CONCLUSION" == "cancelled" ]; then
+#               EMOJI="⚠️"
+#             fi
+#             TEXT="${EMOJI} *${NAME}* triggered by *${TRIGGERER}* on branch \`${BRANCH}\` has *${CONCLUSION}*. \n<${RUN_URL}|View Workflow>"
+#           else
+#             TEXT="ℹ️ *${NAME}* has unknown status: ${STATUS}"
+#           fi
 
-          echo "Sending message: $TEXT"
-          curl -X POST -H 'Content-type: application/json' --data "{
-            \"text\": \"$TEXT\"
-          }" $SLACK_WEBHOOK_URL
+#           echo "Sending message: $TEXT"
+#           curl -X POST -H 'Content-type: application/json' --data "{
+#             \"text\": \"$TEXT\"
+#           }" $SLACK_WEBHOOK_URL
